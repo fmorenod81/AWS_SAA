@@ -1,0 +1,8 @@
+#!/bin/bash
+yum update -y
+amazon-linux-extras install docker -y
+service docker start
+usermod -a -G docker ec2-user
+echo "Creado desde Bootstrap para C y D" >/home/ec2-user/DesdeBootstrap.txt
+chown ec2-user:ec2-user /home/ec2-user/DesdeBootstrap.txt
+docker run -d -p 8080:8080 -e TZ=America/Bogota -h app1 fmorenod81/mtwa:app 

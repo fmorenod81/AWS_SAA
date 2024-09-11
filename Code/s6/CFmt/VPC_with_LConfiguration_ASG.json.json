@@ -1,0 +1,1135 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "Lab 6B. Adapted from https://aws.amazon.com/cloudformation/templates/aws-cloudformation-templates-us-west-1/.",
+	"Parameters": {
+		"KeyName": {
+			"Description": "Name of an existing EC2 KeyPair to enable SSH access to the bastion host",
+			"Type": "AWS::EC2::KeyPair::KeyName",
+			"ConstraintDescription": "must be the name of an existing EC2 KeyPair."
+		},
+		"SSHLocation": {
+			"Description": "Lockdown SSH access to the bastion host (default can be accessed from anywhere)",
+			"Type": "String",
+			"MinLength": "9",
+			"MaxLength": "18",
+			"Default": "0.0.0.0/0",
+			"AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+			"ConstraintDescription": "must be a valid CIDR range of the form x.x.x.x/x."
+		},
+		"EC2InstanceType": {
+			"Description": "EC2 instance types",
+			"Type": "String",
+			"Default": "t3.micro",
+			"AllowedValues": [
+				"t2.nano",
+				"t2.micro",
+				"t2.small",
+				"t3.nano",
+				"t3.micro",
+				"t3.small"
+			],
+			"ConstraintDescription": "must be a valid EC2 instance type."
+		},
+		"LatestAmiId": {
+			"Type": "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>",
+			"Default": "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+		}
+	},
+	"Mappings": {
+		"SubnetConfig": {
+			"PublicVPC": {
+				"CIDR": "10.0.0.0/16"
+			},
+			"PrivateVPC": {
+				"CIDR": "172.16.0.0/16"
+			},
+			"PublicSubnet1": {
+				"CIDR": "10.0.0.0/24"
+			},
+			"PublicSubnet2": {
+				"CIDR": "10.0.1.0/24"
+			},
+			"PrivateSubnet1": {
+				"CIDR": "172.16.0.0/24"
+			},
+			"PrivateSubnet2": {
+				"CIDR": "172.16.1.0/24"
+			},
+			"PrivateNATSubnet": {
+				"CIDR": "172.16.2.0/24"
+			}
+		}
+	},
+	"Resources": {
+		"PublicVPC": {
+			"Type": "AWS::EC2::VPC",
+			"Properties": {
+				"EnableDnsSupport": "true",
+				"EnableDnsHostnames": "true",
+				"CidrBlock": {
+					"Fn::FindInMap": [
+						"SubnetConfig",
+						"PublicVPC",
+						"CIDR"
+					]
+				},
+				"Tags": [
+					{
+						"Key": "Application",
+						"Value": {
+							"Ref": "AWS::StackName"
+						}
+					},
+					{
+						"Key": "Network",
+						"Value": "Public"
+					}
+				]
+			}
+		},
+		"PrivateVPC": {
+			"Type": "AWS::EC2::VPC",
+			"Properties": {
+				"EnableDnsSupport": "true",
+				"EnableDnsHostnames": "true",
+				"CidrBlock": {
+					"Fn::FindInMap": [
+						"SubnetConfig",
+						"PrivateVPC",
+						"CIDR"
+					]
+				},
+				"Tags": [
+					{
+						"Key": "Application",
+						"Value": {
+							"Ref": "AWS::StackName"
+						}
+					},
+					{
+						"Key": "Network",
+						"Value": "Private"
+					}
+				]
+			}
+		},
+		"PublicSubnet1": {
+			"Type": "AWS::EC2::Subnet",
+			"Properties": {
+				"VpcId": {
+					"Ref": "PublicVPC"
+				},
+				"AvailabilityZone": "us-east-1a",
+				"MapPublicIpOnLaunch": true,
+				"CidrBlock": {
+					"Fn::FindInMap": [
+						"SubnetConfig",
+						"PublicSubnet1",
+						"CIDR"
+					]
+				},
+				"Tags": [
+					{
+						"Key": "Application",
+						"Value": {
+							"Ref": "AWS::StackName"
+						}
+					},
+					{
+						"Key": "Network",
+						"Value": "PublicSubnet1"
+					}
+				]
+			}
+		},
+		"PublicSubnet2": {
+			"Type": "AWS::EC2::Subnet",
+			"Properties": {
+				"VpcId": {
+					"Ref": "PublicVPC"
+				},
+				"AvailabilityZone": "us-east-1b",
+				"MapPublicIpOnLaunch": true,
+				"CidrBlock": {
+					"Fn::FindInMap": [
+						"SubnetConfig",
+						"PublicSubnet2",
+						"CIDR"
+					]
+				},
+				"Tags": [
+					{
+						"Key": "Application",
+						"Value": {
+							"Ref": "AWS::StackName"
+						}
+					},
+					{
+						"Key": "Network",
+						"Value": "PublicSubnet2"
+					}
+				]
+			}
+		},
+		"PrivateSubnet1": {
+			"Type": "AWS::EC2::Subnet",
+			"Properties": {
+				"VpcId": {
+					"Ref": "PrivateVPC"
+				},
+				"AvailabilityZone": "us-east-1a",
+				"CidrBlock": {
+					"Fn::FindInMap": [
+						"SubnetConfig",
+						"PrivateSubnet1",
+						"CIDR"
+					]
+				},
+				"Tags": [
+					{
+						"Key": "Application",
+						"Value": {
+							"Ref": "AWS::StackName"
+						}
+					},
+					{
+						"Key": "Network",
+						"Value": "PrivateSubnet1"
+					}
+				]
+			}
+		},
+		"PrivateSubnet2": {
+			"Type": "AWS::EC2::Subnet",
+			"Properties": {
+				"VpcId": {
+					"Ref": "PrivateVPC"
+				},
+				"AvailabilityZone": "us-east-1b",
+				"CidrBlock": {
+					"Fn::FindInMap": [
+						"SubnetConfig",
+						"PrivateSubnet2",
+						"CIDR"
+					]
+				},
+				"Tags": [
+					{
+						"Key": "Application",
+						"Value": {
+							"Ref": "AWS::StackName"
+						}
+					},
+					{
+						"Key": "Network",
+						"Value": "PrivateSubnet2"
+					}
+				]
+			}
+		},
+		"PrivateNATSubnet": {
+			"Type": "AWS::EC2::Subnet",
+			"Properties": {
+				"VpcId": {
+					"Ref": "PrivateVPC"
+				},
+				"AvailabilityZone": "us-east-1b",
+				"CidrBlock": {
+					"Fn::FindInMap": [
+						"SubnetConfig",
+						"PrivateNATSubnet",
+						"CIDR"
+					]
+				},
+				"Tags": [
+					{
+						"Key": "Application",
+						"Value": {
+							"Ref": "AWS::StackName"
+						}
+					},
+					{
+						"Key": "Network",
+						"Value": "PrivateNATSubnet"
+					}
+				]
+			}
+		},
+		"PublicIGW": {
+			"Type": "AWS::EC2::InternetGateway",
+			"Properties": {
+				"Tags": [
+					{
+						"Key": "Application",
+						"Value": {
+							"Ref": "AWS::StackName"
+						}
+					},
+					{
+						"Key": "Network",
+						"Value": "PublicVPC"
+					}
+				]
+			}
+		},
+		"PrivateIGW": {
+			"Type": "AWS::EC2::InternetGateway",
+			"Properties": {
+				"Tags": [
+					{
+						"Key": "Application",
+						"Value": {
+							"Ref": "AWS::StackName"
+						}
+					},
+					{
+						"Key": "Network",
+						"Value": "PrivateVPC"
+					}
+				]
+			}
+		},
+		"GatewayToInternet": {
+			"Type": "AWS::EC2::VPCGatewayAttachment",
+			"Properties": {
+				"VpcId": {
+					"Ref": "PublicVPC"
+				},
+				"InternetGatewayId": {
+					"Ref": "PublicIGW"
+				}
+			}
+		},
+		"PrivateGatewayToInternet": {
+			"Type": "AWS::EC2::VPCGatewayAttachment",
+			"DependsOn": "PrivateVPC",
+			"Properties": {
+				"VpcId": {
+					"Ref": "PrivateVPC"
+				},
+				"InternetGatewayId": {
+					"Ref": "PrivateIGW"
+				}
+			}
+		},
+		"NATGatewayEIP": {
+			"Type": "AWS::EC2::EIP",
+			"Properties": {
+				"Domain": "vpc"
+			}
+		},
+		"NATGateway": {
+			"Type": "AWS::EC2::NatGateway",
+			"DependsOn": "PrivateNATSubnet",
+			"Properties": {
+				"AllocationId": {
+					"Fn::GetAtt": [
+						"NATGatewayEIP",
+						"AllocationId"
+					]
+				},
+				"SubnetId": {
+					"Ref": "PrivateNATSubnet"
+				}
+			}
+		},
+		"PublicRouteTable": {
+			"Type": "AWS::EC2::RouteTable",
+			"DependsOn": "PublicVPC",
+			"Properties": {
+				"VpcId": {
+					"Ref": "PublicVPC"
+				},
+				"Tags": [
+					{
+						"Key": "Application",
+						"Value": {
+							"Ref": "AWS::StackName"
+						}
+					},
+					{
+						"Key": "Network",
+						"Value": "PublicRT"
+					}
+				]
+			}
+		},
+		"PrivateRouteTable": {
+			"Type": "AWS::EC2::RouteTable",
+			"DependsOn": "PrivateVPC",
+			"Properties": {
+				"VpcId": {
+					"Ref": "PrivateVPC"
+				},
+				"Tags": [
+					{
+						"Key": "Application",
+						"Value": {
+							"Ref": "AWS::StackName"
+						}
+					},
+					{
+						"Key": "Network",
+						"Value": "PrivateRT"
+					}
+				]
+			}
+		},
+		"NATRT": {
+			"Type": "AWS::EC2::RouteTable",
+			"DependsOn": "PrivateVPC",
+			"Properties": {
+				"VpcId": {
+					"Ref": "PrivateVPC"
+				},
+				"Tags": [
+					{
+						"Key": "Application",
+						"Value": {
+							"Ref": "AWS::StackName"
+						}
+					},
+					{
+						"Key": "Network",
+						"Value": "NATRT"
+					}
+				]
+			}
+		},
+		"PublicRoute": {
+			"Type": "AWS::EC2::Route",
+			"DependsOn": "PublicRouteTable",
+			"Properties": {
+				"RouteTableId": {
+					"Ref": "PublicRouteTable"
+				},
+				"DestinationCidrBlock": "0.0.0.0/0",
+				"GatewayId": {
+					"Ref": "PublicIGW"
+				}
+			}
+		},
+		"PublicSubnet1RouteTableAssociation": {
+			"Type": "AWS::EC2::SubnetRouteTableAssociation",
+			"DependsOn": "PublicRouteTable",
+			"Properties": {
+				"SubnetId": {
+					"Ref": "PublicSubnet1"
+				},
+				"RouteTableId": {
+					"Ref": "PublicRouteTable"
+				}
+			}
+		},
+		"PublicSubne2tRouteTableAssociation": {
+			"Type": "AWS::EC2::SubnetRouteTableAssociation",
+			"DependsOn": "PublicRouteTable",
+			"Properties": {
+				"SubnetId": {
+					"Ref": "PublicSubnet2"
+				},
+				"RouteTableId": {
+					"Ref": "PublicRouteTable"
+				}
+			}
+		},
+		"PublicNATRoute": {
+			"Type": "AWS::EC2::Route",
+			"DependsOn": "NATRT",
+			"Properties": {
+				"RouteTableId": {
+					"Ref": "NATRT"
+				},
+				"DestinationCidrBlock": "0.0.0.0/0",
+				"GatewayId": {
+					"Ref": "PrivateIGW"
+				}
+			}
+		},
+		"PrivateRoute": {
+			"Type": "AWS::EC2::Route",
+			"DependsOn": "NATGateway",
+			"Properties": {
+				"RouteTableId": {
+					"Ref": "PrivateRouteTable"
+				},
+				"DestinationCidrBlock": "0.0.0.0/0",
+				"NatGatewayId": {
+					"Ref": "NATGateway"
+				}
+			}
+		},
+		"PrivateSubnet1RouteTableAssociation": {
+			"Type": "AWS::EC2::SubnetRouteTableAssociation",
+			"DependsOn": "PrivateRouteTable",
+			"Properties": {
+				"SubnetId": {
+					"Ref": "PrivateSubnet1"
+				},
+				"RouteTableId": {
+					"Ref": "PrivateRouteTable"
+				}
+			}
+		},
+		"PrivateSubne2tRouteTableAssociation": {
+			"Type": "AWS::EC2::SubnetRouteTableAssociation",
+			"DependsOn": "PrivateRouteTable",
+			"Properties": {
+				"SubnetId": {
+					"Ref": "PrivateSubnet2"
+				},
+				"RouteTableId": {
+					"Ref": "PrivateRouteTable"
+				}
+			}
+		},
+		"PublicNATSubnetRouteTableAssociation": {
+			"Type": "AWS::EC2::SubnetRouteTableAssociation",
+			"DependsOn": "NATRT",
+			"Properties": {
+				"SubnetId": {
+					"Ref": "PrivateNATSubnet"
+				},
+				"RouteTableId": {
+					"Ref": "NATRT"
+				}
+			}
+		},
+		"VPCPeeringBetweenLayers": {
+			"Type": "AWS::EC2::VPCPeeringConnection",
+			"Properties": {
+				"VpcId": {
+					"Ref": "PublicVPC"
+				},
+				"PeerVpcId": {
+					"Ref": "PrivateVPC"
+				}
+			}
+		},
+		"PeeringRoutePublic": {
+			"Type": "AWS::EC2::Route",
+			"Properties": {
+				"DestinationCidrBlock": {
+					"Fn::FindInMap": [
+						"SubnetConfig",
+						"PrivateVPC",
+						"CIDR"
+					]
+				},
+				"RouteTableId": {
+					"Ref": "PublicRouteTable"
+				},
+				"VpcPeeringConnectionId": {
+					"Ref": "VPCPeeringBetweenLayers"
+				}
+			}
+		},
+		"PeeringRoutePrivate": {
+			"Type": "AWS::EC2::Route",
+			"Properties": {
+				"DestinationCidrBlock": {
+					"Fn::FindInMap": [
+						"SubnetConfig",
+						"PublicVPC",
+						"CIDR"
+					]
+				},
+				"RouteTableId": {
+					"Ref": "PrivateRouteTable"
+				},
+				"VpcPeeringConnectionId": {
+					"Ref": "VPCPeeringBetweenLayers"
+				}
+			}
+		},
+		"InstanceC": {
+			"Type": "AWS::EC2::Instance",
+			"DependsOn": "NATGateway",
+			"Properties": {
+				"InstanceType": {
+					"Ref": "EC2InstanceType"
+				},
+				"KeyName": {
+					"Ref": "KeyName"
+				},
+				"ImageId": {
+					"Ref": "LatestAmiId"
+				},
+				"NetworkInterfaces": [
+					{
+						"GroupSet": [
+							{
+								"Ref": "PrivateEC2SecurityGroup"
+							}
+						],
+						"DeviceIndex": "0",
+						"DeleteOnTermination": "true",
+						"SubnetId": {
+							"Ref": "PrivateSubnet1"
+						}
+					}
+				],
+				"Tags": [
+					{
+						"Key": "Name",
+						"Value": "InstanceC"
+					}
+				],
+				"UserData": {
+					"Fn::Base64": {
+						"Fn::Join": [
+							"",
+							[
+								"#!/bin/bash -ex",
+								"\n",
+								"sleep 10",
+								"\n",
+								"curl ifconfig.me >/home/ec2-user/DesdeBootstrap.txt",
+								"\n",
+								"\n",
+								"yum update -y",
+								"\n",
+								"yum install docker -y",
+								"\n",
+								"usermod -a -G docker ec2-user",
+								"\n",
+								"service docker start",
+								"\n",
+								"docker run -d -p 8080:8080 -e TZ=America/Bogota -h AppTier_InstanceC fmorenod81/mtwa:app"
+							]
+						]
+					}
+				}
+			}
+		},
+		"InstanceD": {
+			"Type": "AWS::EC2::Instance",
+			"DependsOn": "NATGateway",
+			"Properties": {
+				"InstanceType": {
+					"Ref": "EC2InstanceType"
+				},
+				"KeyName": {
+					"Ref": "KeyName"
+				},
+				"ImageId": {
+					"Ref": "LatestAmiId"
+				},
+				"NetworkInterfaces": [
+					{
+						"GroupSet": [
+							{
+								"Ref": "PrivateEC2SecurityGroup"
+							}
+						],
+						"DeviceIndex": "0",
+						"DeleteOnTermination": "true",
+						"SubnetId": {
+							"Ref": "PrivateSubnet2"
+						}
+					}
+				],
+				"Tags": [
+					{
+						"Key": "Name",
+						"Value": "InstanceD"
+					}
+				],
+				"UserData": {
+					"Fn::Base64": {
+						"Fn::Join": [
+							"",
+							[
+								"#!/bin/bash -ex",
+								"\n",
+								"sleep 10",
+								"\n",
+								"curl ifconfig.me >/home/ec2-user/DesdeBootstrap.txt",
+								"\n",
+								"\n",
+								"yum update -y",
+								"\n",
+								"yum install docker -y",
+								"\n",
+								"usermod -a -G docker ec2-user",
+								"\n",
+								"service docker start",
+								"\n",
+								"docker run -d -p 8080:8080 -e TZ=America/Bogota -h AppTier_InstanceD fmorenod81/mtwa:app "
+							]
+						]
+					}
+				}
+			}
+		},
+		"LaunchConfigurationWebTier": {
+			"Type": "AWS::AutoScaling::LaunchConfiguration",
+			"Properties": {
+				"ImageId": {
+					"Ref": "LatestAmiId"
+				},
+				"SecurityGroups": [
+					{
+						"Ref": "PublicEC2SecurityGroup"
+					}
+				],
+				"InstanceType": {
+					"Ref": "EC2InstanceType"
+				},
+				"KeyName": {
+					"Ref": "KeyName"
+				},
+				"LaunchConfigurationName": "LaunchConfigurationWebTier",
+				"UserData": {
+					"Fn::Base64": {
+						"Fn::Join": [
+							"",
+							[
+								"#!/bin/bash -ex",
+								"\n",
+								"\n",
+								"yum update -y",
+								"\n",
+								"yum install docker -y",
+								"\n",
+								"usermod -a -G docker ec2-user",
+								"\n",
+								"service docker start",
+								"\n",
+								"docker run -d -p 80:80 -p 443:443 -e APPSERVER=http://",
+								{
+									"Fn::GetAtt": [
+										"PrivateLoadBalancer",
+										"DNSName"
+									]
+								},
+								":8080 -e TZ=America/Bogota -h WebTier_InstancePublic fmorenod81/mtwa:web"
+							]
+						]
+					}
+				}
+			}
+		},
+		"AutoScalingGroupWebTier": {
+			"Type": "AWS::AutoScaling::AutoScalingGroup",
+			"DependsOn": "LaunchConfigurationWebTier",
+			"Properties": {
+				"AutoScalingGroupName": "AutoScalingGroupWebTier",
+				"DesiredCapacity": "1",
+				"AvailabilityZones": [
+					"us-east-1a",
+					"us-east-1b"
+				],
+				"DesiredCapacityType": "units",
+				"LaunchConfigurationName": "LaunchConfigurationWebTier",
+				"MaxSize": "3",
+				"MinSize": "1",
+				"TargetGroupARNs": [
+					{
+						"Ref": "PublicTargetGroup"
+					}
+				],
+				"VPCZoneIdentifier": [
+					{
+						"Ref": "PublicSubnet1"
+					},
+					{
+						"Ref": "PublicSubnet2"
+					}
+				]
+			}
+		},
+		"ASGScalingPolicyHigh": {
+			"Type": "AWS::AutoScaling::ScalingPolicy",
+			"Properties": {
+				"AutoScalingGroupName": {
+					"Ref": "AutoScalingGroupWebTier"
+				},
+				"PolicyType": "SimpleScaling",
+				"AdjustmentType": "ChangeInCapacity",
+				"ScalingAdjustment": 1
+			}
+		},
+		"CPUAlarmHigh": {
+			"Type": "AWS::CloudWatch::Alarm",
+			"Properties": {
+				"EvaluationPeriods": "1",
+				"Statistic": "Average",
+				"Threshold": "60",
+				"AlarmDescription": "Scale out if CPU > 60% for 1 minute",
+				"Period": "60",
+				"AlarmActions": [
+					{
+						"Ref": "ASGScalingPolicyHigh"
+					}
+				],
+				"Namespace": "AWS/EC2",
+				"Dimensions": [
+					{
+						"Name": "AutoScalingGroupName",
+						"Value": {
+							"Ref": "AutoScalingGroupWebTier"
+						}
+					}
+				],
+				"ComparisonOperator": "GreaterThanThreshold",
+				"MetricName": "CPUUtilization"
+			}
+		},
+		"ASGScalingPolicyLow": {
+			"Type": "AWS::AutoScaling::ScalingPolicy",
+			"Properties": {
+				"AutoScalingGroupName": {
+					"Ref": "AutoScalingGroupWebTier"
+				},
+				"PolicyType": "SimpleScaling",
+				"AdjustmentType": "ChangeInCapacity",
+				"ScalingAdjustment": -1
+			}
+		},
+		"CPUAlarmLow": {
+			"Type": "AWS::CloudWatch::Alarm",
+			"Properties": {
+				"EvaluationPeriods": "1",
+				"Statistic": "Average",
+				"Threshold": "40",
+				"AlarmDescription": "Scale out if CPU < 40% for 1 minute",
+				"Period": "60",
+				"AlarmActions": [
+					{
+						"Ref": "ASGScalingPolicyLow"
+					}
+				],
+				"Namespace": "AWS/EC2",
+				"Dimensions": [
+					{
+						"Name": "AutoScalingGroupName",
+						"Value": {
+							"Ref": "AutoScalingGroupWebTier"
+						}
+					}
+				],
+				"ComparisonOperator": "LessThanThreshold",
+				"MetricName": "CPUUtilization"
+			}
+		},
+		"PublicEC2SecurityGroup": {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Properties": {
+				"GroupDescription": "Enable access to the EC2 host",
+				"VpcId": {
+					"Ref": "PublicVPC"
+				},
+				"SecurityGroupIngress": [
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "22",
+						"ToPort": "22",
+						"CidrIp": {
+							"Ref": "SSHLocation"
+						}
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "80",
+						"ToPort": "80",
+						"CidrIp": "0.0.0.0/0"
+					}
+				]
+			}
+		},
+		"PrivateEC2SecurityGroup": {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Properties": {
+				"GroupDescription": "Enable access to the EC2 host",
+				"VpcId": {
+					"Ref": "PrivateVPC"
+				},
+				"SecurityGroupIngress": [
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "22",
+						"ToPort": "22",
+						"CidrIp": {
+							"Ref": "SSHLocation"
+						}
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "8080",
+						"ToPort": "8080",
+						"CidrIp": "0.0.0.0/0"
+					}
+				]
+			}
+		},
+		"ALBSecurityGroup": {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Properties": {
+				"GroupDescription": "Enable access to the ALB",
+				"VpcId": {
+					"Ref": "PublicVPC"
+				},
+				"SecurityGroupIngress": [
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "80",
+						"ToPort": "80",
+						"CidrIp": "0.0.0.0/0"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "443",
+						"ToPort": "443",
+						"CidrIp": "0.0.0.0/0"
+					}
+				]
+			}
+		},
+		"NLBSecurityGroup": {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Properties": {
+				"GroupDescription": "Enable access to the NLB",
+				"VpcId": {
+					"Ref": "PrivateVPC"
+				},
+				"SecurityGroupIngress": [
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "8080",
+						"ToPort": "8080",
+						"CidrIp": "0.0.0.0/0"
+					},
+					{
+						"IpProtocol": "tcp",
+						"FromPort": "22",
+						"ToPort": "22",
+						"CidrIp": "0.0.0.0/0"
+					}
+				]
+			}
+		},
+		"PublicTargetGroup": {
+			"Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+			"Properties": {
+				"Name": "PublicTargetGroup",
+				"Port": 80,
+				"Protocol": "HTTP",
+				"TargetGroupAttributes": [
+					{
+						"Key": "deregistration_delay.timeout_seconds",
+						"Value": "20"
+					}
+				],
+				"VpcId": {
+					"Ref": "PublicVPC"
+				},
+				"Tags": [
+					{
+						"Key": "Name",
+						"Value": "PublicTargetGroup"
+					}
+				]
+			}
+		},
+		"PrivateTargetGroup": {
+			"Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+			"Properties": {
+				"Name": "PrivateTargetGroup",
+				"Port": 8080,
+				"Protocol": "TCP",
+				"TargetGroupAttributes": [
+					{
+						"Key": "deregistration_delay.timeout_seconds",
+						"Value": "20"
+					}
+				],
+				"VpcId": {
+					"Ref": "PrivateVPC"
+				},
+				"Targets": [
+					{
+						"Id": {
+							"Ref": "InstanceC"
+						},
+						"Port": 8080
+					},
+					{
+						"Id": {
+							"Ref": "InstanceD"
+						},
+						"Port": 8080
+					}
+				],
+				"Tags": [
+					{
+						"Key": "Name",
+						"Value": "PrivateTargetGroup"
+					}
+				]
+			}
+		},
+		"PublicLoadBalancer": {
+			"Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+			"Properties": {
+				"Scheme": "internet-facing",
+				"Subnets": [
+					{
+						"Ref": "PublicSubnet1"
+					},
+					{
+						"Ref": "PublicSubnet2"
+					}
+				],
+				"LoadBalancerAttributes": [
+					{
+						"Key": "idle_timeout.timeout_seconds",
+						"Value": "50"
+					}
+				],
+				"SecurityGroups": [
+					{
+						"Ref": "ALBSecurityGroup"
+					}
+				],
+				"Tags": [
+					{
+						"Key": "Name",
+						"Value": "PublicALB"
+					}
+				]
+			}
+		},
+		"PrivateLoadBalancer": {
+			"Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+			"Properties": {
+				"Scheme": "internal",
+				"Type": "network",
+				"Subnets": [
+					{
+						"Ref": "PrivateSubnet1"
+					},
+					{
+						"Ref": "PrivateSubnet2"
+					}
+				],
+				"SecurityGroups": [
+					{
+						"Ref": "NLBSecurityGroup"
+					}
+				],
+				"Tags": [
+					{
+						"Key": "Name",
+						"Value": "PublicNLB"
+					}
+				]
+			}
+		},
+		"HTTP80Listener": {
+			"Type": "AWS::ElasticLoadBalancingV2::Listener",
+			"Properties": {
+				"DefaultActions": [
+					{
+						"Type": "forward",
+						"TargetGroupArn": {
+							"Ref": "PublicTargetGroup"
+						}
+					}
+				],
+				"LoadBalancerArn": {
+					"Ref": "PublicLoadBalancer"
+				},
+				"Port": "80",
+				"Protocol": "HTTP"
+			}
+		},
+		"HTTP8080Listener": {
+			"Type": "AWS::ElasticLoadBalancingV2::Listener",
+			"Properties": {
+				"DefaultActions": [
+					{
+						"Type": "forward",
+						"TargetGroupArn": {
+							"Ref": "PrivateTargetGroup"
+						}
+					}
+				],
+				"LoadBalancerArn": {
+					"Ref": "PrivateLoadBalancer"
+				},
+				"Port": "8080",
+				"Protocol": "TCP"
+			}
+		},
+		"PublicListenerRule": {
+			"Type": "AWS::ElasticLoadBalancingV2::ListenerRule",
+			"Properties": {
+				"Actions": [
+					{
+						"Type": "forward",
+						"TargetGroupArn": {
+							"Ref": "PublicTargetGroup"
+						}
+					}
+				],
+				"Conditions": [
+					{
+						"Field": "path-pattern",
+						"Values": [
+							"*"
+						]
+					}
+				],
+				"ListenerArn": {
+					"Ref": "HTTP80Listener"
+				},
+				"Priority": 1
+			}
+		}
+	},
+	"Outputs": {
+		"VPCId": {
+			"Description": "VPCId of the newly created VPC",
+			"Value": {
+				"Ref": "PublicVPC"
+			}
+		},
+		"InstanceC": {
+			"Description": "Private IP Address of Instance C",
+			"Value": {
+				"Fn::GetAtt": [
+					"InstanceC",
+					"PrivateIp"
+				]
+			}
+		},
+		"InstanceD": {
+			"Description": "Private IP Address of Instance D",
+			"Value": {
+				"Fn::GetAtt": [
+					"InstanceD",
+					"PrivateIp"
+				]
+			}
+		},
+		"PrivateLoadBalancerDNSName": {
+			"Value": {
+				"Fn::GetAtt": [
+					"PrivateLoadBalancer",
+					"DNSName"
+				]
+			},
+			"Description": "DNSName of the Private Load Balancer"
+		},
+		"PublicLoadBalancerDNSName": {
+			"Value": {
+				"Fn::GetAtt": [
+					"PublicLoadBalancer",
+					"DNSName"
+				]
+			},
+			"Description": "DNSName of the Public Load Balancer"
+		}
+	}
+}

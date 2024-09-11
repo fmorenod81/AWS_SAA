@@ -1,0 +1,1 @@
+[.Reservations | .[] | .Instances | .[] | {InstanceId: .InstanceId, State: .State.Name, SubnetId: .SubnetId, PrivateIpAddress: .PrivateIpAddress, PublicIpAddress: .PublicIpAddress, ENIPrivateIpAddress: .NetworkInterfaces[].PrivateIpAddress, ENIPublicIpAddress: .NetworkInterfaces[].PrivateIpAddresses[].Association.PublicIp, VpcId: .VpcId}]

@@ -1,0 +1,15 @@
+#!/bin/bash
+yum update -y
+amazon-linux-extras install docker -y
+yum install python3 -y
+pip3 install pymysql
+# rpm --import https://repo.mysql.com/RPM-GPG-KEY-mysql-2022
+# yum install -y mysql-community-client
+yum install -y mysql 
+service docker start
+usermod -a -G docker ec2-user
+echo "Creado desde Bootstrap para A y B" >/home/ec2-user/DesdeBootstrap.txt
+chown ec2-user:ec2-user /home/ec2-user/DesdeBootstrap.txt
+curl https://static.us-east-1.prod.workshops.aws/public/8bfcf385-82eb-4dca-8427-36326c89895b/static/resources/simple_failover.py -o /home/ec2-user/simple_failover.py
+export PUBLICIP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
+docker run -d -p 80:80 -p 443:443 -e APPSERVER=http://$PUBLICIP:8080 -e TZ=America/Bogota  -h web1 fmorenod81/mtwa:web

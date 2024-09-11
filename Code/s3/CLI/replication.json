@@ -1,0 +1,14 @@
+{
+    "Role": "arn:aws:iam::768312754627:role/replicationRole",
+    "Rules": [
+      {
+        "Status": "Enabled",
+        "Priority": 1,
+        "DeleteMarkerReplication": { "Status": "Disabled" },
+        "Filter" : { },
+        "Destination": {
+          "Bucket": "arn:aws:s3:::www.ocidemo1281.replicado"
+        }
+      }
+    ]
+  }

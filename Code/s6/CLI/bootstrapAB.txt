@@ -1,0 +1,8 @@
+#!/bin/bash
+yum update -y
+amazon-linux-extras install docker -y
+service docker start
+usermod -a -G docker ec2-user
+echo "Creado desde Bootstrap para A y B" >/home/ec2-user/DesdeBootstrap.txt
+chown ec2-user:ec2-user /home/ec2-user/DesdeBootstrap.txt
+docker run -d -p 80:80 -p 443:443 -e APPSERVER="http://NLBLab6a-fb6ec9fe63257cf7.elb.us-east-1.amazonaws.com:8080" -e TZ=America/Bogota -h web1 fmorenod81/mtwa:web
